@@ -1,0 +1,31 @@
+{
+  "name": "social-poster",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@types/multer": "^2.1.0",
+    "@types/uuid": "^10.0.0",
+    "axios": "^1.15.0",
+    "form-data": "^4.0.5",
+    "multer": "^2.1.1",
+    "next": "16.2.3",
+    "node-cron": "^4.2.1",
+    "node-fetch": "^2.7.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
