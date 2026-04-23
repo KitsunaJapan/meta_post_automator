@@ -1,22 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { postInstagramFeed, postInstagramStory, postFacebookFeed, postFacebookStory } from '@/lib/meta';
+import { publishPost, MediaItem } from '@/lib/meta';
 import { verifyToken } from '../auth/route';
 
 export async function POST(req: NextRequest) {
   if (!verifyToken(req)) return NextResponse.json({ error: '認証が必要です' }, { status: 401 });
   try {
-    const { imageUrl, caption, postType, platform } = await req.json();
-    if (!imageUrl) return NextResponse.json({ error: '画像URLが必要です' }, { status: 400 });
-    const result: { instagramId?: string; facebookId?: string } = {};
-    if (platform === 'instagram' || platform === 'both') {
-      result.instagramId = postType === 'story' ? await postInstagramStory(imageUrl) : await postInstagramFeed(imageUrl, caption ?? '');
-    }
-    if (platform === 'facebook' || platform === 'both') {
-      result.facebookId = postType === 'story' ? await postFacebookStory(imageUrl) : await postFacebookFeed(imageUrl, caption ?? '');
-    }
+    const { items, caption, postType, platform } = await req.json() as {
+      items: MediaItem[];
+      caption: string;
+      postType: 'feed' | 'story';
+      platform: 'instagram' | 'facebook' | 'both';
+    };
+    if (!items?.length) return NextResponse.json({ error: 'メディアが必要です' }, { status: 400 });
+    const result = await publishPost(items, caption, postType, platform);
     return NextResponse.json({ success: true, ...result });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return NextResponse.json({ error: message }, { status: 500 });
+    return NextResponse.json({ error: err instanceof Error ? err.message : String(err) }, { status: 500 });
   }
 }
