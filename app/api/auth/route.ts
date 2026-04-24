@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 
 // APP_PASSWORD は Render の環境変数で設定する（例: MY_SECRET_PASS）

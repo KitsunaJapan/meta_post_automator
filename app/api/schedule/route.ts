@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { addScheduled } from '@/lib/store';
 import { ScheduledPost } from '@/types';

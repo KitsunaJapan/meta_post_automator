@@ -1,3 +1,5 @@
+export const runtime = 'nodejs';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { readScheduled, deleteScheduled } from '@/lib/store';
 import { verifyToken } from '../auth/route';
