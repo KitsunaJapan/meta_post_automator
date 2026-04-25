@@ -46,7 +46,8 @@ export async function GET(req: NextRequest) {
     facebookPageAccessToken: mask(s.facebookPageAccessToken),
     facebookPageId: s.facebookPageId,
     instagramBusinessAccountId: s.instagramBusinessAccountId,
-    isConfigured: !!(s.facebookPageAccessToken && s.facebookPageId && s.instagramBusinessAccountId),
+    isConfigured: !!(s.facebookPageAccessToken && s.facebookPageId),
+    hasInstagram: !!s.instagramBusinessAccountId,
   });
 }
 

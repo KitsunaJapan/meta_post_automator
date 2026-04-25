@@ -64,7 +64,7 @@ export default function Home() {
   const [sIgId, setSIgId] = useState('');
   const [sLoading, setSLoading] = useState(false);
   const [sMsg, setSMsg] = useState<{ type: 'success'|'error'; text: string }|null>(null);
-  const [sMasked, setSMasked] = useState<{ facebookPageAccessToken: string; facebookPageId: string; instagramBusinessAccountId: string; isConfigured: boolean }|null>(null);
+  const [sMasked, setSMasked] = useState<{ facebookPageAccessToken: string; facebookPageId: string; instagramBusinessAccountId: string; isConfigured: boolean; hasInstagram: boolean }|null>(null);
 
   const fetchSettings = useCallback(async () => {
     const r = await authedFetch('/api/settings');
@@ -183,7 +183,7 @@ export default function Home() {
       const items = await uploadAll(); if (!items) return;
       const r = await authedFetch('/api/post', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, caption: buildCaption(), postType, platform }) });
       const d = await r.json();
-      if (d.success) { resetAll(); setStep('done'); }
+      if (d.success) { resetAll(); setStep('done'); if (d.skipped) setMessage({ type: 'success', text: `ℹ️ ${d.skipped}` }); }
       else setMessage({ type: 'error', text: `❌ ${d.error}` });
     } catch { setMessage({ type: 'error', text: '❌ ネットワークエラーが発生しました' }); }
     finally { setLoading(false); }
@@ -197,7 +197,7 @@ export default function Home() {
       const items = await uploadAll(); if (!items) return;
       const r = await authedFetch('/api/schedule', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items, caption: buildCaption(), postType, platform, scheduledAt }) });
       const d = await r.json();
-      if (d.success) { resetAll(); setStep('done'); }
+      if (d.success) { resetAll(); setStep('done'); if (d.skipped) setMessage({ type: 'success', text: `ℹ️ ${d.skipped}` }); }
       else setMessage({ type: 'error', text: `❌ ${d.error}` });
     } catch { setMessage({ type: 'error', text: '❌ ネットワークエラーが発生しました' }); }
     finally { setLoading(false); }
@@ -372,7 +372,7 @@ export default function Home() {
             <p style={{ margin: '0 0 24px', fontSize: 13, color: '#888' }}>空欄のまま保存すると変更されません。</p>
             {sMasked && (
               <div style={{ background: sMasked.isConfigured ? '#f0fdf4' : '#fef2f2', border: `1px solid ${sMasked.isConfigured ? '#86efac' : '#fca5a5'}`, borderRadius: 9, padding: '12px 16px', marginBottom: 24, fontSize: 13, color: sMasked.isConfigured ? '#166534' : '#991b1b' }}>
-                {sMasked.isConfigured ? '✅ 設定済み — 投稿機能が使えます' : '⚠️ 未設定 — 下のフォームで設定してください'}
+                {sMasked.isConfigured ? `✅ 設定済み — 投稿機能が使えます${sMasked.hasInstagram ? '（Instagram連携あり）' : '（Facebookのみ）'}` : '⚠️ 未設定 — FacebookのPage TokenとPage IDを入力してください'}
                 {sMasked.isConfigured && <div style={{ marginTop: 8, fontFamily: 'monospace', fontSize: 12, color: '#555', display: 'flex', flexDirection: 'column', gap: 2 }}>
                   <span>Token: {sMasked.facebookPageAccessToken}</span>
                   <span>Page ID: {sMasked.facebookPageId}</span>
@@ -383,7 +383,7 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
               <div><label style={lbl}>Facebook Page Access Token</label><input type="password" placeholder="EAABxx..." value={sFbToken} onChange={e => setSFbToken(e.target.value)} style={inp} /></div>
               <div><label style={lbl}>Facebook Page ID</label><input type="text" placeholder="例: 123456789012345" value={sFbPageId} onChange={e => setSFbPageId(e.target.value)} style={inp} /></div>
-              <div><label style={lbl}>Instagram Business Account ID</label><input type="text" placeholder="例: 17841400000000000" value={sIgId} onChange={e => setSIgId(e.target.value)} style={inp} /></div>
+              <div><label style={lbl}>Instagram Business Account ID <span style={{fontSize:11,color:'#888',fontWeight:400}}>（任意・Instagramを使わない場合は空欄でOK）</span></label><input type="text" placeholder="例: 17841400000000000（Instagramを使う場合のみ）" value={sIgId} onChange={e => setSIgId(e.target.value)} style={inp} /></div>
               {sMsg && <div style={{ padding: '10px 14px', borderRadius: 8, fontSize: 13, background: sMsg.type === 'success' ? '#f0fdf4' : '#fef2f2', border: `1px solid ${sMsg.type === 'success' ? '#86efac' : '#fca5a5'}`, color: sMsg.type === 'success' ? '#166534' : '#991b1b' }}>{sMsg.text}</div>}
               <button onClick={handleSaveSettings} disabled={sLoading} style={{ padding: 13, background: sLoading ? '#aaa' : '#1a1a1a', color: '#fff', border: 'none', borderRadius: 9, fontSize: 14, fontWeight: 600, cursor: sLoading ? 'not-allowed' : 'pointer' }}>{sLoading ? '保存中...' : '設定を保存する'}</button>
             </div>
@@ -425,7 +425,14 @@ export default function Home() {
                   <div>
                     <label style={lbl}>投稿先</label>
                     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                      {(['instagram','facebook','both'] as Platform[]).map(p => <button key={p} onClick={() => setPlatform(p)} style={tgl(platform === p)}>{p === 'instagram' ? '📸 IG' : p === 'facebook' ? '👍 FB' : '🔀 両方'}</button>)}
+                      {(['instagram','facebook','both'] as Platform[]).map(p => {
+                        const igDisabled = !sMasked?.hasInstagram && (p === 'instagram');
+                        return (
+                          <button key={p} onClick={() => !igDisabled && setPlatform(p)} title={igDisabled ? 'Instagram Business Account IDが未設定です' : undefined} style={{...tgl(platform === p), opacity: igDisabled ? 0.35 : 1, cursor: igDisabled ? 'not-allowed' : 'pointer'}}>
+                            {p === 'instagram' ? '📸 IG' : p === 'facebook' ? '👍 FB' : '🔀 両方'}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>

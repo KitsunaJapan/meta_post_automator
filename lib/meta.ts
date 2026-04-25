@@ -4,13 +4,18 @@ const BASE = 'https://graph.facebook.com/v19.0';
 
 function cfg() {
   const s = loadSettings();
-  if (!s.facebookPageAccessToken || !s.facebookPageId || !s.instagramBusinessAccountId) {
-    throw new Error('Meta APIの設定が未完了です。⚙設定タブでアクセストークン・Page ID・Instagram IDを入力してください。');
+  // Facebook（トークン・Page ID）は必須。InstagramはオプションなのでIG IDは不要でもOK
+  if (!s.facebookPageAccessToken || !s.facebookPageId) {
+    throw new Error('Meta APIの設定が未完了です。⚙設定タブでFacebook Page Access TokenとPage IDを入力してください。');
   }
-  return { token: s.facebookPageAccessToken, pageId: s.facebookPageId, igId: s.instagramBusinessAccountId };
+  return {
+    token: s.facebookPageAccessToken,
+    pageId: s.facebookPageId,
+    igId: s.instagramBusinessAccountId, // 空文字の場合あり
+    hasIg: !!s.instagramBusinessAccountId,
+  };
 }
 
-// Meta APIエラーを分かりやすいメッセージで投げるヘルパー
 async function metaPost(url: string, body: Record<string, unknown>) {
   const res = await fetch(url, {
     method: 'POST',
@@ -53,10 +58,7 @@ async function igCarousel(imageUrls: string[], caption: string, token: string, i
     childIds.push(c.id);
   }
   const carousel = await metaPost(`${BASE}/${igId}/media`, {
-    media_type: 'CAROUSEL',
-    children: childIds.join(','),
-    caption,
-    access_token: token,
+    media_type: 'CAROUSEL', children: childIds.join(','), caption, access_token: token,
   });
   if (!carousel.id) throw new Error(`IGカルーセルコンテナ作成失敗: ${JSON.stringify(carousel)}`);
   const p = await metaPost(`${BASE}/${igId}/media_publish`, { creation_id: carousel.id, access_token: token });
@@ -65,14 +67,8 @@ async function igCarousel(imageUrls: string[], caption: string, token: string, i
 }
 
 async function igVideo(videoUrl: string, caption: string, token: string, igId: string) {
-  const c = await metaPost(`${BASE}/${igId}/media`, {
-    video_url: videoUrl,
-    media_type: 'REELS',
-    caption,
-    access_token: token,
-  });
+  const c = await metaPost(`${BASE}/${igId}/media`, { video_url: videoUrl, media_type: 'REELS', caption, access_token: token });
   if (!c.id) throw new Error(`IGリールコンテナ作成失敗: ${JSON.stringify(c)}`);
-  // 動画処理完了を待つ（最大60秒）
   for (let i = 0; i < 20; i++) {
     await new Promise(r => setTimeout(r, 3000));
     const status = await metaGet(`${BASE}/${c.id}?fields=status_code&access_token=${token}`);
@@ -106,11 +102,7 @@ async function fbImages(imageUrls: string[], caption: string, token: string, pag
     if (!d.id) throw new Error(`FB写真アップロード失敗: ${JSON.stringify(d)}`);
     attached.push({ media_fbid: d.id });
   }
-  const feed = await metaPost(`${BASE}/${pageId}/feed`, {
-    message: caption,
-    attached_media: attached,
-    access_token: token,
-  });
+  const feed = await metaPost(`${BASE}/${pageId}/feed`, { message: caption, attached_media: attached, access_token: token });
   if (!feed.id) throw new Error(`FB複数枚投稿失敗: ${JSON.stringify(feed)}`);
   return feed.id as string;
 }
@@ -142,23 +134,28 @@ export async function publishPost(
   postType: 'feed' | 'story',
   platform: 'instagram' | 'facebook' | 'both'
 ) {
-  const { token, pageId, igId } = cfg();
-  const result: { instagramId?: string; facebookId?: string } = {};
+  const { token, pageId, igId, hasIg } = cfg();
+  const result: { instagramId?: string; facebookId?: string; skipped?: string } = {};
 
   const images = items.filter(i => i.mediaType === 'image').map(i => i.url);
   const video = items.find(i => i.mediaType === 'video');
 
   if (!images.length && !video) throw new Error('投稿するメディアがありません');
 
+  // Instagram：IG IDが未設定の場合はスキップ（エラーにしない）
   if (platform === 'instagram' || platform === 'both') {
-    if (postType === 'story') {
-      result.instagramId = await igStory(images[0] ?? video!.url, token, igId);
-    } else if (video) {
-      result.instagramId = await igVideo(video.url, caption, token, igId);
-    } else if (images.length > 1) {
-      result.instagramId = await igCarousel(images, caption, token, igId);
+    if (!hasIg) {
+      result.skipped = 'Instagram Business Account IDが未設定のためInstagramへの投稿をスキップしました';
     } else {
-      result.instagramId = await igSingleImage(images[0], caption, token, igId);
+      if (postType === 'story') {
+        result.instagramId = await igStory(images[0] ?? video!.url, token, igId);
+      } else if (video) {
+        result.instagramId = await igVideo(video.url, caption, token, igId);
+      } else if (images.length > 1) {
+        result.instagramId = await igCarousel(images, caption, token, igId);
+      } else {
+        result.instagramId = await igSingleImage(images[0], caption, token, igId);
+      }
     }
   }
 
